@@ -1,1 +1,20 @@
 # Day 1:
+先了解了一下Go语言的相关背景知识，发现它跟C语言渊源还挺深，给人第一感觉就像是C语言和python语言结合产生的。  
+先配了个Go语言的开发环境，使用vscode，安装go的相关插件，添加了环境变量，插件很贴心地下载了很多工具  
+目前开发环境拥有基本的代码高亮，自动补充与调试功能。  
+写了个测试程序，运行结果如下：
+![Alt text](image.png)  
+期间也遇上了不少问题，但其中最突出的一个还是刚写完程序提示错误  
+    
+    gopls was not able to find modules in your workspace.
+
+    When outside of GOPATH, gopls needs to know which modules you are working on.
+
+    You can fix this by opening your workspace to a folder inside a Go module, or
+
+    by using a go.work file to specify multiple modules.
+
+    See the documentation for more information on setting up your workspace
+还挺让人不解的。  
+之后经过搜索发现这涉及一个golang 1.11 新加的go modules特性，要在工作区中设置一个go.mod文件来指定工作区范围。编程小白世面见得确实少。根据资料使用go mod 命令解决问题。  
+![Alt text](image-1.png)
