@@ -17,4 +17,8 @@
     See the documentation for more information on setting up your workspace
 还挺让人不解的。  
 之后经过搜索发现这涉及一个golang 1.11 新加的go modules特性，要在工作区中设置一个go.mod文件来指定工作区范围。编程小白世面见得确实少。根据资料使用go mod 命令解决问题。  
-![Alt text](image-1.png)
+![Alt text](image-1.png)  
+
+# Day 2:
+上一天课。  
+真该死啊，计网实验课
