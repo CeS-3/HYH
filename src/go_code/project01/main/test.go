@@ -3,167 +3,40 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
-	//"encoding/json"
 )
+
+//获取AK
+var AK = os.Getenv("AK")
 func main()  {
-	http.HandleFunc("/", index)
+	//轨迹重合率分析 的API的调用
+	http.HandleFunc("/trackmatch",trackmatch)
+	http.HandleFunc("/directionlite",directionlite)
 	err := http.ListenAndServe(":8080", nil)  //监听8080端口
     if err != nil {
         fmt.Printf("服务器开启错误:  %v", err)
     }
 }
 
-/*用户以传入出各项参数*/
-func index(w http.ResponseWriter, r *http.Request){
-	AK := os.Getenv("AK")
+/*用户以post方式传入各项参数*/
+func trackmatch(w http.ResponseWriter, r *http.Request){
+	
 	//从请求中读取各项参数
-	//r.reque
-	// optin := 
-	// standard_option :=
-	// coord_type_input :=
-	// coord_type_output :=
-	// standard_track :=
-	// track :=
+	r.ParseForm()
+	option := r.FormValue("option")
+	standard_option := r.FormValue("standard_option")
+	coord_type_input := r.FormValue("coord_type_input")
+	coord_type_output := r.FormValue("coord_type_output")
+	standard_track := r.FormValue("standard_track")
+	track := r.FormValue("track")
 	// 轨迹重合率分析 API的地址
 	API_host := "https://api.map.baidu.com"
 	API_uri := "/trackmatch/v1/track"
 
-	//测试用参数
-	option := "need_mapmatch:1|transport_mode:driving|denoise_grade:1|vacuate_grade:1"
-	standard_option := "need_mapmatch:1|transport_mode:driving|denoise_grade:1|vacuate_grade:1"
-	coord_type_input := "bd09ll"
-	coord_type_output := "bd09ll"
-	standard_track := "[" +
-		"\"36.2715924153,120.401133898,1542702871,10,0,182,10\"," +
-		"\"36.2710674153,120.401122046,1542702922,10,0,196,10\"," +
-		"\"36.2710674153,120.401122046,1542702974,10,0,196,10\"," +
-		"\"36.26970681,120.406126,1542703026,10,47.52,130,10\"," +
-		"\"36.2626899159,120.406257629,1542703079,10,55.46,202,10\"," +
-		"\"36.2554959254,120.401709345,1542703131,10,67.12,196,10\"," +
-		"\"36.2482072286,120.398668032,1542703182,10,61.85,210,10\"," +
-		"\"36.2453202208,120.390573255,1542703234,10,65.87,254,10\"," +
-		"\"36.2462943954,120.378697631,1542703287,10,73.71,290,10\"," +
-		"\"36.2464401658,120.368128971,1542703339,10,73.87,260,10\"," +
-		"\"36.2411743783,120.360663512,1542703391,10,59.18,126,10\"," +
-		"\"36.2359637286,120.364107473,1542703443,10,53.34,170,10\"," +
-		"\"36.2274663652,120.366807035,1542703495,10,76.01,162,10\"," +
-		"\"36.2191917852,120.369949698,1542703547,10,54.52,164,10\"," +
-		"\"36.2115422586,120.371949535,1542703599,10,53.63,168,10\"," +
-		"\"36.2030928069,120.374239653,1542703651,10,63.09,166,10\"," +
-		"\"36.1952276423,120.376376162,1542703703,10,64.96,166,10\"," +
-		"\"36.1863905908,120.378671574,1542703756,10,64.74,174,10\"," +
-		"\"36.1788541312,120.377499973,1542703808,10,63.87,188,10\"," +
-		"\"36.1704235657,120.372412643,1542703860,10,72.4,210,10\"," +
-		"\"36.1634141202,120.367268764,1542703914,10,58.26,210,10\"," +
-		"\"36.1569415328,120.362514475,1542703967,10,58.85,212,10\"," +
-		"\"36.1485292943,120.356262129,1542704019,10,80.31,214,10\"," +
-		"\"36.1393112024,120.347530639,1542704072,10,81.05,222,10\"," +
-		"\"36.1301655849,120.340345789,1542704124,10,77.4,196,10\"," +
-		"\"36.1211280447,120.336765391,1542704177,10,75.24,196,10\"," +
-		"\"36.11300077,120.341976435,1542704230,10,74.88,130,10\"," +
-		"\"36.1073771898,120.346281534,1542704282,10,66.57,196,10\"," +
-		"\"36.0986517057,120.343359644,1542704334,10,65.1,214,10\"," +
-		"\"36.0932847733,120.33390827,1542704386,10,79.48,222,10\"," +
-		"\"36.0858251826,120.32623366,1542704439,10,58.41,196,10\"," +
-		"\"36.0786150672,120.322233011,1542704492,10,54.04,238,10\"," +
-		"\"36.075226344,120.314356211,1542704545,10,60.12,228,10\"," +
-		"\"36.072236205,120.312555005,1542704597,10,35.28,142,10\"," +
-		"\"36.0706011296,120.315061175,1542704649,10,11.34,110,10\"," +
-		"\"36.0685378369,120.317775978,1542704701,10,0,98,10\"," +
-		"\"36.0688195042,120.317895497,1542704753,10,0,358,10\"," +
-		"\"36.0706590168,120.317870441,1542704805,10,34.03,354,10\"," +
-		"\"36.0717839252,120.317869634,1542704857,10,7.94,0,10\"," +
-		"\"36.0739165982,120.318617997,1542704909,10,24.01,30,10\"," +
-		"\"36.0780753769,120.321498577,1542704961,10,66.87,54,10\"," +
-		"\"36.0841215243,120.325862295,1542705013,10,50.04,14,10\"," +
-		"\"36.0893503416,120.330558993,1542705065,10,47.92,40,10\"," +
-		"\"36.0949719161,120.336536055,1542705117,10,60.32,58,10\"," +
-		"\"36.0989178008,120.343754977,1542705169,10,57.92,30,10\"," +
-		"\"36.1078891986,120.347114039,1542705221,10,67.56,16,10\"," +
-		"\"36.1132203912,120.341953405,1542705273,10,79.95,312,10\"," +
-		"\"36.1203662082,120.336542141,1542705325,10,64.65,16,10\"," +
-		"\"36.127806772,120.339576583,1542705377,10,69.99,18,10\"," +
-		"\"36.1358413464,120.344054163,1542705429,10,60.89,42,10\"," +
-		"\"36.142723078,120.351475833,1542705481,10,66.79,42,10\"," +
-		"\"36.1504414305,120.357955917,1542705533,10,85.23,30,10\"," +
-		"\"36.159401099,120.36446441,1542705585,10,77.47,30,10\"," +
-		"\"36.1670307349,120.370148187,1542705638,10,75.62,30,10\"," +
-		"\"36.174153068,120.375378597,1542705690,10,55.34,30,10\"," +
-		"\"36.1826116953,120.378258093,1542705742,10,68.14,6,10\"," +
-		"\"36.1913659705,120.377572583,1542705794,10,78.21,346,10\"," +
-		"\"36.2006024054,120.37507592,1542705846,10,61.12,346,10\"," +
-		"\"36.2087023867,120.372944857,1542705897,10,71.34,348,10\"" +
-		"]"
-	track := "[" +
-		"\"36.2716924153,120.401133898,1542702871,10,0,182,10\"," +
-		"\"36.2712674153,120.401122046,1542702922,10,0,196,10\"," +
-		"\"36.2711674153,120.401122046,1542702974,10,0,196,10\"," +
-		"\"36.26960681,120.406126,1542703026,10,47.52,130,10\"," +
-		"\"36.2625899159,120.406257629,1542703079,10,55.46,202,10\"," +
-		"\"36.2556959254,120.401709345,1542703131,10,67.12,196,10\"," +
-		"\"36.2484072286,120.398668032,1542703182,10,61.85,210,10\"," +
-		"\"36.2452202208,120.390573255,1542703234,10,65.87,254,10\"," +
-		"\"36.2463943954,120.378697631,1542703287,10,73.71,290,10\"," +
-		"\"36.2466401658,120.368128971,1542703339,10,73.87,260,10\"," +
-		"\"36.2413743783,120.360663512,1542703391,10,59.18,126,10\"," +
-		"\"36.2357637286,120.364107473,1542703443,10,53.34,170,10\"," +
-		"\"36.2272663652,120.366807035,1542703495,10,76.01,162,10\"," +
-		"\"36.2193917852,120.369949698,1542703547,10,54.52,164,10\"," +
-		"\"36.2113422586,120.371949535,1542703599,10,53.63,168,10\"," +
-		"\"36.2033928069,120.374239653,1542703651,10,63.09,166,10\"," +
-		"\"36.1954276423,120.376376162,1542703703,10,64.96,166,10\"," +
-		"\"36.1862905908,120.378671574,1542703756,10,64.74,174,10\"," +
-		"\"36.1787541312,120.377499973,1542703808,10,63.87,188,10\"," +
-		"\"36.1705235657,120.372412643,1542703860,10,72.4,210,10\"," +
-		"\"36.1635141202,120.367268764,1542703914,10,58.26,210,10\"," +
-		"\"36.1567415328,120.362514475,1542703967,10,58.85,212,10\"," +
-		"\"36.151714,120.35796,1542703978,10,58.85,212,10\"," +
-		"\"36.151381,120.3546,1542703985,10,58.85,212,10\"," +
-		"\"36.148601,120.350702,1542703995,10,58.85,212,10\"," +
-		"\"36.145876,120.349642,1542704005,10,58.85,212,10\"," +
-		"\"36.14239,120.348169,1542704020,10,58.85,212,10\"," +
-		"\"36.14239,120.348169,1542704050,10,58.85,212,10\"," +
-		"\"36.1391112024,120.347530639,1542704072,10,81.05,222,10\"," +
-		"\"36.1303655849,120.340345789,1542704124,10,77.4,196,10\"," +
-		"\"36.1213280447,120.336765391,1542704177,10,75.24,196,10\"," +
-		"\"36.11300077,120.341976435,1542704230,10,74.88,130,10\"," +
-		"\"36.1073771898,120.346281534,1542704282,10,66.57,196,10\"," +
-		"\"36.0986517057,120.343359644,1542704334,10,65.1,214,10\"," +
-		"\"36.0932847733,120.33390827,1542704386,10,79.48,222,10\"," +
-		"\"36.0858251826,120.32623366,1542704439,10,58.41,196,10\"," +
-		"\"36.0786150672,120.322233011,1542704492,10,54.04,238,10\"," +
-		"\"36.075226344,120.314356211,1542704545,10,60.12,228,10\"," +
-		"\"36.072236205,120.312555005,1542704597,10,35.28,142,10\"," +
-		"\"36.0706011296,120.315061175,1542704649,10,11.34,110,10\"," +
-		"\"36.0685378369,120.317775978,1542704701,10,0,98,10\"," +
-		"\"36.0688195042,120.317895497,1542704753,10,0,358,10\"," +
-		"\"36.0706590168,120.317870441,1542704805,10,34.03,354,10\"," +
-		"\"36.0717839252,120.317869634,1542704857,10,7.94,0,10\"," +
-		"\"36.0739165982,120.318617997,1542704909,10,24.01,30,10\"," +
-		"\"36.0780753769,120.321498577,1542704961,10,66.87,54,10\"," +
-		"\"36.0841215243,120.325862295,1542705013,10,50.04,14,10\"," +
-		"\"36.0893503416,120.330558993,1542705065,10,47.92,40,10\"," +
-		"\"36.0949719161,120.336536055,1542705117,10,60.32,58,10\"," +
-		"\"36.0989178008,120.343754977,1542705169,10,57.92,30,10\"," +
-		"\"36.1078891986,120.347114039,1542705221,10,67.56,16,10\"," +
-		"\"36.1132203912,120.341953405,1542705273,10,79.95,312,10\"," +
-		"\"36.1203662082,120.336542141,1542705325,10,64.65,16,10\"," +
-		"\"36.127806772,120.339576583,1542705377,10,69.99,18,10\"," +
-		"\"36.1358413464,120.344054163,1542705429,10,60.89,42,10\"," +
-		"\"36.142723078,120.351475833,1542705481,10,66.79,42,10\"," +
-		"\"36.1504414305,120.357955917,1542705533,10,85.23,30,10\"," +
-		"\"36.159401099,120.36446441,1542705585,10,77.47,30,10\"," +
-		"\"36.1670307349,120.370148187,1542705638,10,75.62,30,10\"," +
-		"\"36.174153068,120.375378597,1542705690,10,55.34,30,10\"," +
-		"\"36.1826116953,120.378258093,1542705742,10,68.14,6,10\"," +
-		"\"36.1913659705,120.377572583,1542705794,10,78.21,346,10\"," +
-		"\"36.2006024054,120.37507592,1542705846,10,61.12,346,10\"," +
-		"\"36.2087023867,120.372944857,1542705897,10,71.34,348,10\"" +
-		"]"
 
 	// 设置请求参数
 	params := url.Values{
@@ -175,7 +48,7 @@ func index(w http.ResponseWriter, r *http.Request){
 		"standard_track":    []string{standard_track},
 		"track":             []string{track},
 	}
-
+	
 	// 发起请求
 	target_url := API_host + API_uri
 	resp, err := http.PostForm(target_url, params)
@@ -234,3 +107,308 @@ func index(w http.ResponseWriter, r *http.Request){
 	json.Unmarshal(body,&ResData)
 	fmt.Fprintln(w,ResData.Status,ResData.Data.Similarity)
 }
+
+func directionlite(w http.ResponseWriter,r *http.Request){
+	//设置页面用于接收用户的输入
+	ht, err := template.ParseFiles("./directionlite.html")
+	if err != nil {
+	fmt.Fprintf(w, "解析页面错误: %v", err)
+	return
+	}
+	ht.Execute(w,nil)
+	//解析传入的参数
+	r.ParseForm()
+	transport := r.PostFormValue("transport")
+	origin := r.PostFormValue("origin")
+	destination := r.PostFormValue("destination")
+	mode := r.PostFormValue("mode")
+	
+	API_host := "https://api.map.baidu.com" 
+	API_uri := "/directionlite/v1/" + transport
+	
+	// 设置请求参数
+	params := url.Values {
+		  "origin": []string{origin},
+		  "destination": []string{destination},
+		  "ak": []string{AK},
+	}
+	
+	// 发起请求
+	request, err := url.Parse(API_host + API_uri + "?" + params.Encode())
+	if nil != err {
+		fmt.Printf("错误: %v", err)
+		return
+	}
+	
+	resp, err1 := http.Get(request.String())
+	fmt.Printf("url: %s\n", request.String())
+	defer resp.Body.Close()
+	if err1 != nil {
+		fmt.Printf("请求错误: %v", err1)
+		return
+	}
+	body, err2 := io.ReadAll(resp.Body)
+	if err2 != nil {
+		fmt.Printf("读取响应信息错误: %v", err2)
+	}
+	//解析返回结果
+	switch transport{
+	case "driving":
+		driving(&w,body,mode)
+	case "walking":
+		walking(w,body,mode)
+	case "riding":
+		riding(w,body,mode)
+	case "transit":
+		transit(w,body,mode)
+	}
+	
+}
+func driving(w *http.ResponseWriter,content []byte,mode string){
+	type Origin struct {
+		Lng float64 `json:"lng"`
+		Lat float64 `json:"lat"`
+	}
+	type Destination struct {
+		Lng float64 `json:"lng"`
+		Lat float64 `json:"lat"`
+	}
+	type RestrictionInfo struct {
+		Status int `json:"status"`
+	}
+	type TrafficCondition struct {
+		Status int `json:"status"`
+		GeoCnt int `json:"geo_cnt"`
+	}
+	type StartLocation struct {
+		Lng string `json:"lng"`
+		Lat string `json:"lat"`
+	}
+	type EndLocation struct {
+		Lng string `json:"lng"`
+		Lat string `json:"lat"`
+	}
+	type Steps struct {
+		LegIndex int `json:"leg_index"`
+		Distance int `json:"distance"`
+		Duration int `json:"duration"`
+		Direction int `json:"direction"`
+		Turn int `json:"turn"`
+		RoadType int `json:"road_type"`
+		RoadTypes string `json:"road_types"`
+		Instruction string `json:"instruction"`
+		Path string `json:"path"`
+		TrafficCondition []TrafficCondition `json:"traffic_condition"`
+		StartLocation StartLocation `json:"start_location"`
+		EndLocation EndLocation `json:"end_location"`
+	}
+	type Routes struct {
+		RouteMd5 string `json:"route_md5"`
+		Distance int `json:"distance"`
+		Duration int `json:"duration"`
+		TrafficCondition int `json:"traffic_condition"`
+		Toll int `json:"toll"`
+		RestrictionInfo RestrictionInfo `json:"restriction_info"`
+		Steps []Steps `json:"steps"`
+	}
+	type Result struct {
+		Origin Origin `json:"origin"`
+		Destination Destination `json:"destination"`
+		Routes []Routes `json:"routes"`
+	}
+	type Driving struct {
+		Status int `json:"status"`
+		Message string `json:"message"`
+		Result Result `json:"result"`
+	}
+
+	ResData := Driving{}
+	json.Unmarshal(content,&ResData)
+	switch mode{
+	case "1":
+		fmt.Fprintf(*w,"线路耗时%d\n",ResData.Result.Routes[0].Duration)
+	case "2":
+		fmt.Fprintf(*w,"线路耗时%d\n",ResData.Result.Routes[0].Duration)
+		//fmt.Fprintf(w,"")
+	}
+
+	
+}
+func walking(w http.ResponseWriter,content []byte,mode string){
+
+	type Origin struct {
+		Lng float64 `json:"lng"`
+		Lat float64 `json:"lat"`
+	}
+	type Destination struct {
+		Lng float64 `json:"lng"`
+		Lat float64 `json:"lat"`
+	}
+	type StartLocation struct {
+		Lng string `json:"lng"`
+		Lat string `json:"lat"`
+	}
+	type EndLocation struct {
+		Lng string `json:"lng"`
+		Lat string `json:"lat"`
+	}
+	type Steps struct {
+		Distance int `json:"distance"`
+		Duration int `json:"duration"`
+		Direction int `json:"direction"`
+		Instruction string `json:"instruction"`
+		Path string `json:"path"`
+		StartLocation StartLocation `json:"start_location"`
+		EndLocation EndLocation `json:"end_location"`
+	}
+	type Routes struct {
+		Distance int `json:"distance"`
+		Duration int `json:"duration"`
+		Steps []Steps `json:"steps"`
+	}
+	type Result struct {
+		Origin Origin `json:"origin"`
+		Destination Destination `json:"destination"`
+		Routes []Routes `json:"routes"`
+	}
+	type Walking struct {
+		Status int `json:"status"`
+		Message string `json:"message"`
+		Result Result `json:"result"`
+	}
+	ResData := Walking{}
+	json.Unmarshal(content,&ResData)
+	fmt.Fprint(w,"")
+	
+}
+func riding(w http.ResponseWriter,content []byte,mode string){
+	type Origin struct {
+		Lng float64 `json:"lng"`
+		Lat float64 `json:"lat"`
+	}
+	type Destination struct {
+		Lng float64 `json:"lng"`
+		Lat float64 `json:"lat"`
+	}
+	type StartLocation struct {
+		Lng string `json:"lng"`
+		Lat string `json:"lat"`
+	}
+	type EndLocation struct {
+		Lng string `json:"lng"`
+		Lat string `json:"lat"`
+	}
+	type Steps struct {
+		Distance int `json:"distance"`
+		Duration int `json:"duration"`
+		Direction int `json:"direction"`
+		TurnType string `json:"turn_type"`
+		Name string `json:"name"`
+		Instruction string `json:"instruction"`
+		RestrictionsInfo string `json:"restrictions_info"`
+		Path string `json:"path"`
+		StartLocation StartLocation `json:"start_location"`
+		EndLocation EndLocation `json:"end_location"`
+	}
+	type Routes struct {
+		Distance int `json:"distance"`
+		Duration int `json:"duration"`
+		Steps []Steps `json:"steps"`
+	}
+	type Result struct {
+		Origin Origin `json:"origin"`
+		Destination Destination `json:"destination"`
+		Routes []Routes `json:"routes"`
+	}
+	type Riding struct {
+		Status int `json:"status"`
+		Message string `json:"message"`
+		Result Result `json:"result"`
+	}
+	ResData := Riding{}
+	json.Unmarshal(content,&ResData)
+	fmt.Fprint(w,"")
+	
+}
+func transit(w http.ResponseWriter,content []byte,mode string){
+	
+
+	type Origin struct {
+		Lng float64 `json:"lng"`
+		Lat float64 `json:"lat"`
+	}
+	type Destination struct {
+		Lng float64 `json:"lng"`
+		Lat float64 `json:"lat"`
+	}
+	type LinePrice struct {
+		LinePrice int `json:"line_price"`
+		LineType int `json:"line_type"`
+	}
+	type Vehicle struct {
+		DirectText string `json:"direct_text"`
+		Name string `json:"name"`
+		LineID string `json:"line_id"`
+		StartName string `json:"start_name"`
+		EndName string `json:"end_name"`
+		StartTime string `json:"start_time"`
+		EndTime string `json:"end_time"`
+		StopNum int `json:"stop_num"`
+		TotalPrice int `json:"total_price"`
+		Type int `json:"type"`
+		ZonePrice int `json:"zone_price"`
+	}
+	type StartLocation struct {
+		Lng float64 `json:"lng"`
+		Lat float64 `json:"lat"`
+	}
+	type EndLocation struct {
+		Lng float64 `json:"lng"`
+		Lat float64 `json:"lat"`
+	}
+	type Steps struct {
+		Distance int `json:"distance"`
+		Duration int `json:"duration"`
+		Type int `json:"type"`
+		Instruction string `json:"instruction"`
+		Vehicle Vehicle `json:"vehicle"`
+		Path string `json:"path"`
+		StartLocation StartLocation `json:"start_location"`
+		EndLocation EndLocation `json:"end_location"`
+	}
+	type Routes struct {
+		Distance int `json:"distance"`
+		Duration int `json:"duration"`
+		Price int `json:"price"`
+		LinePrice []LinePrice `json:"line_price"`
+		Steps []Steps `json:"steps"`
+		TrafficCondition int `json:"traffic_condition"`
+	}
+	type Detail struct {
+		Desc string `json:"desc"`
+		KmPrice float64 `json:"km_price"`
+		StartPrice int `json:"start_price"`
+		TotalPrice int `json:"total_price"`
+	}
+	type Taxi struct {
+		Detail []Detail `json:"detail"`
+		Distance int `json:"distance"`
+		Duration int `json:"duration"`
+		Remark string `json:"remark"`
+	}
+	type Result struct {
+		Origin Origin `json:"origin"`
+		Destination Destination `json:"destination"`
+		Routes []Routes `json:"routes"`
+		Taxi Taxi `json:"taxi"`
+	}
+	type Transit struct {
+		Status int `json:"status"`
+		Message string `json:"message"`
+		Result Result `json:"result"`
+	}
+	ResData := Transit{}
+	json.Unmarshal(content,&ResData)
+	fmt.Fprint(w,"")
+	
+}        

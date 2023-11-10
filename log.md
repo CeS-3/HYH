@@ -38,3 +38,9 @@
 ![Alt text](image-2.png)
 结果
 ![Alt text](image-3.png)
+
+# Day 5:
+完成了对post参数的处理
+![Alt text](image-4.png)
+虽然不知道效果是否达到预期  
+着手对Task 2进行实现

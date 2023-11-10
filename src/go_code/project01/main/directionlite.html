@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title></title>
+</head>
+<body>
+    <form action="directionlite" method="post">
+        起点: <input type="text" name="fname"><br>
+        终点: <input type="text" name="lname"><br>
+        (格式为:纬度,经度;小数点后不超过6位)<br>
+        请选择交通方式: <br>
+        <input type="radio" name="transport" value="driving">驾车<br>
+        <input type="radio" name="transport" value="riding">骑行<br>
+        <input type="radio" name="transport" value="walking">步行<br>
+        <input type="radio" name="transport" value="transit">公交<br>
+        请选择输出方式: <br>
+        <input type="radio" name="mode" value="1">仅输出路线时间<br>
+        <input type="radio" name="mode" value="2">额外输出转站点<br>
+        <input type="radio" name="mode" value="3">形式化的路线输出<br>
+        <input type="submit" value="提交">
+    </form>
+</body>
+</html>
