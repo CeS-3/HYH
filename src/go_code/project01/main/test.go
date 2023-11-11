@@ -16,12 +16,66 @@ func main()  {
 	//轨迹重合率分析 的API的调用
 	http.HandleFunc("/trackmatch",trackmatch)
 	http.HandleFunc("/directionlite",directionlite)
+	http.HandleFunc("/road",road)
 	err := http.ListenAndServe(":8080", nil)  //监听8080端口
     if err != nil {
         fmt.Printf("服务器开启错误:  %v", err)
     }
 }
-
+/*用于将地址转换为经纬度*/
+func geocoding(address string) string{
+		API_host := "https://api.map.baidu.com"
+		API_uri := "/geocoding/v3"
+	
+		// 设置负载
+		params := url.Values {
+			  "address": []string{address},
+			  "output": []string{"json"},
+			  "ak": []string{AK},
+			  "callback": []string{"showLocation"},
+		}
+	
+		// 构造请求
+		request, err := url.Parse(API_host + API_uri + "?" + params.Encode())
+		if nil != err {
+			fmt.Printf("请求构造错误: %v", err)
+			return ""
+		}
+		//发起请求
+		resp, err1 := http.Get(request.String())
+		fmt.Printf("url: %s\n", request.String())
+		defer resp.Body.Close()
+		if err1 != nil {
+			fmt.Printf("请求错误: %v", err1)
+			return ""
+		}
+		body, err2 := io.ReadAll(resp.Body)
+		if err2 != nil {
+			fmt.Printf("读取相应信息错误: %v", err2)
+		}
+		//解析获取的数据
+		fmt.Printf(string(body)+"\n")
+		type Location struct {
+			Lng float64 `json:"lng"`
+			Lat float64 `json:"lat"`
+		}
+		type Result struct {
+			Location Location `json:"location"`
+			Precise int `json:"precise"`
+			Confidence int `json:"confidence"`
+			Comprehension int `json:"comprehension"`
+			Level string `json:"level"`
+		}
+		type Gcode struct {
+			Status int `json:"status"`
+			Result Result `json:"result"`
+		}
+		ResData := Gcode{}
+		/////////////这里有问题！！！！！！！！
+		json.Unmarshal(body,&ResData)
+		code := fmt.Sprintf("%f,%f",ResData.Result.Location.Lat,ResData.Result.Location.Lng)
+		return code
+}
 /*用户以post方式传入各项参数*/
 func trackmatch(w http.ResponseWriter, r *http.Request){
 	
@@ -107,7 +161,70 @@ func trackmatch(w http.ResponseWriter, r *http.Request){
 	json.Unmarshal(body,&ResData)
 	fmt.Fprintln(w,ResData.Status,ResData.Data.Similarity)
 }
-
+/*进行道路路况查询*/ 
+func road(w http.ResponseWriter,r *http.Request){
+	//设置页面用于接收用户的输入
+	ht, err := template.ParseFiles("./road.html")
+	if err != nil {
+	fmt.Fprintf(w, "解析页面错误: %v", err)
+	return
+	}
+	ht.Execute(w,nil)
+	//解析传入的参数
+	r.ParseForm()
+	road_name := r.PostFormValue("road_name")
+	city := r.PostFormValue("city")
+	
+	//API地址
+	API_host := "https://api.map.baidu.com"
+	API_uri := "/traffic/v1/road"
+	//构建负载
+	params := url.Values{
+		"road_name": []string{road_name},
+		"city": []string{city},
+		"ak": []string{AK},
+	}
+	//构造请求
+	request, err := url.Parse(API_host + API_uri + "?" + params.Encode())
+    if nil != err {
+        fmt.Printf("请求构造错误: %v", err)
+        return
+    }
+	//发送请求
+	resp,err1 := http.Get(request.String())
+	if nil != err1{
+		fmt.Printf("请求错误：%v",err1)
+	}
+	fmt.Printf("url: %s\n", request.String())
+	defer resp.Body.Close()
+	body,err2 := io.ReadAll(resp.Body)
+	if nil != err2{
+		fmt.Printf("解析响应信息错误：%v",err2)
+	}
+	//解析返回结果
+	type Evaluation struct {
+		Status int `json:"status"`
+		StatusDesc string `json:"status_desc"`
+	}
+	type RoadTraffic struct {
+		RoadName string `json:"road_name"`
+	}
+	type Road struct {
+		Status int `json:"status"`
+		Message string `json:"message"`
+		Description string `json:"description"`
+		Evaluation Evaluation `json:"evaluation"`
+		RoadTraffic []RoadTraffic `json:"road_traffic"`
+	}
+	
+	ResData := Road{}
+	json.Unmarshal(body,&ResData)
+	if ResData.Description != ""{
+		fmt.Fprintf(w,"%s<br>",ResData.Description)
+	}else{
+		fmt.Fprintf(w,"抱歉，没有找到该路段<br>")
+	}
+}       
 func directionlite(w http.ResponseWriter,r *http.Request){
 	//设置页面用于接收用户的输入
 	ht, err := template.ParseFiles("./directionlite.html")
@@ -122,7 +239,10 @@ func directionlite(w http.ResponseWriter,r *http.Request){
 	origin := r.PostFormValue("origin")
 	destination := r.PostFormValue("destination")
 	mode := r.PostFormValue("mode")
-	
+	//用地理编码解析地址
+	origin  = geocoding(origin)
+	destination = geocoding(destination)
+
 	API_host := "https://api.map.baidu.com" 
 	API_uri := "/directionlite/v1/" + transport
 	
@@ -154,7 +274,7 @@ func directionlite(w http.ResponseWriter,r *http.Request){
 	//解析返回结果
 	switch transport{
 	case "driving":
-		driving(&w,body,mode)
+		driving(w,body,mode)
 	case "walking":
 		walking(w,body,mode)
 	case "riding":
@@ -164,7 +284,7 @@ func directionlite(w http.ResponseWriter,r *http.Request){
 	}
 	
 }
-func driving(w *http.ResponseWriter,content []byte,mode string){
+func driving(w http.ResponseWriter,content []byte,mode string){
 	type Origin struct {
 		Lng float64 `json:"lng"`
 		Lat float64 `json:"lat"`
@@ -226,10 +346,21 @@ func driving(w *http.ResponseWriter,content []byte,mode string){
 	json.Unmarshal(content,&ResData)
 	switch mode{
 	case "1":
-		fmt.Fprintf(*w,"线路耗时%d\n",ResData.Result.Routes[0].Duration)
+		fmt.Fprintf(w,"<h1>路线时间%d秒</h1><br>",ResData.Result.Routes[0].Duration)  //输出总耗时
 	case "2":
-		fmt.Fprintf(*w,"线路耗时%d\n",ResData.Result.Routes[0].Duration)
-		//fmt.Fprintf(w,"")
+		fmt.Fprintf(w,"<h1>路线时间%d秒</h1><br>",ResData.Result.Routes[0].Duration)
+		for step,station := range ResData.Result.Routes[0].Steps{
+			fmt.Fprintf(w,"%d.%s<br>",step,station.Instruction)     //输出具体的路线
+		}
+	case "3":
+		fmt.Fprintf(w,"<h1>路线时间%d秒</h1><br>",ResData.Result.Routes[0].Duration)
+		for step,station := range ResData.Result.Routes[0].Steps{
+			if step != 0{
+				fmt.Fprintf(w,"->(%s,%s)",station.StartLocation.Lat,station.StartLocation.Lng)  //输出每一站的经纬度，实现形式化的路线输出
+			}else{
+				fmt.Fprintf(w,"(%s,%s)",station.StartLocation.Lat,station.StartLocation.Lng)
+			}
+		}
 	}
 
 	
@@ -278,7 +409,24 @@ func walking(w http.ResponseWriter,content []byte,mode string){
 	}
 	ResData := Walking{}
 	json.Unmarshal(content,&ResData)
-	fmt.Fprint(w,"")
+	switch mode{
+	case "1":
+		fmt.Fprintf(w,"<h1>路线时间%d秒</h1><br>",ResData.Result.Routes[0].Duration)  //输出总耗时
+	case "2":
+		fmt.Fprintf(w,"<h1>路线时间%d秒</h1><br>",ResData.Result.Routes[0].Duration)
+		for step,station := range ResData.Result.Routes[0].Steps{
+			fmt.Fprintf(w,"%d.%s<br>",step,station.Instruction)     //输出具体的路线
+		}
+	case "3":
+		fmt.Fprintf(w,"<h1>路线时间%d秒</h1><br>",ResData.Result.Routes[0].Duration)
+		for step,station := range ResData.Result.Routes[0].Steps{
+			if step != 0{
+				fmt.Fprintf(w,"->(%s,%s)",station.StartLocation.Lat,station.StartLocation.Lng)  //输出每一站的经纬度，实现形式化的路线输出
+			}else{
+				fmt.Fprintf(w,"(%s,%s)",station.StartLocation.Lat,station.StartLocation.Lng)
+			}
+		}
+	}
 	
 }
 func riding(w http.ResponseWriter,content []byte,mode string){
@@ -327,7 +475,24 @@ func riding(w http.ResponseWriter,content []byte,mode string){
 	}
 	ResData := Riding{}
 	json.Unmarshal(content,&ResData)
-	fmt.Fprint(w,"")
+	switch mode{
+	case "1":
+		fmt.Fprintf(w,"<h1>路线时间%d秒</h1><br>",ResData.Result.Routes[0].Duration)  //输出总耗时
+	case "2":
+		fmt.Fprintf(w,"<h1>路线时间%d秒</h1><br>",ResData.Result.Routes[0].Duration)
+		for step,station := range ResData.Result.Routes[0].Steps{
+			fmt.Fprintf(w,"%d.%s<br>",step,station.Instruction)     //输出具体的路线
+		}
+	case "3":
+		fmt.Fprintf(w,"<h1>路线时间%d秒</h1><br>",ResData.Result.Routes[0].Duration)
+		for step,station := range ResData.Result.Routes[0].Steps{
+			if step != 0{
+				fmt.Fprintf(w,"->(%s,%s)",station.StartLocation.Lat,station.StartLocation.Lng)  //输出每一站的经纬度，实现形式化的路线输出
+			}else{
+				fmt.Fprintf(w,"(%s,%s)",station.StartLocation.Lat,station.StartLocation.Lng)
+			}
+		}
+	}
 	
 }
 func transit(w http.ResponseWriter,content []byte,mode string){
@@ -381,7 +546,7 @@ func transit(w http.ResponseWriter,content []byte,mode string){
 		Duration int `json:"duration"`
 		Price int `json:"price"`
 		LinePrice []LinePrice `json:"line_price"`
-		Steps []Steps `json:"steps"`
+		Steps [][]Steps `json:"steps"`
 		TrafficCondition int `json:"traffic_condition"`
 	}
 	type Detail struct {
@@ -409,6 +574,23 @@ func transit(w http.ResponseWriter,content []byte,mode string){
 	}
 	ResData := Transit{}
 	json.Unmarshal(content,&ResData)
-	fmt.Fprint(w,"")
+	switch mode{
+	case "1":
+		fmt.Fprintf(w,"<h1>路线时间%d秒</h1><br>",ResData.Result.Routes[0].Duration)  //输出总耗时
+	case "2":
+		fmt.Fprintf(w,"<h1>路线时间%d秒</h1><br>",ResData.Result.Routes[0].Duration)
+		for step,station := range ResData.Result.Routes[0].Steps{   //此处的steps是个二维数组
+			fmt.Fprintf(w,"%d.%s<br>",step,station[1].Instruction)
+		}
+	case "3":
+		fmt.Fprintf(w,"<h1>路线时间%d秒</h1><br>",ResData.Result.Routes[0].Duration)
+		for step,station := range ResData.Result.Routes[0].Steps{
+			if step != 0{
+				fmt.Fprintf(w,"->(%f,%f)",station[0].StartLocation.Lat,station[0].StartLocation.Lng)  //输出每一站的经纬度，实现形式化的路线输出
+			}else{
+				fmt.Fprintf(w,"(%f,%f)",station[0].StartLocation.Lat,station[0].StartLocation.Lng)
+			}
+		}
+	}
 	
-}        
+}
