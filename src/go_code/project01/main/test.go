@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -8,19 +9,33 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"database/sql"
 	_ "github.com/go-sql-driver/mysql"
 )
+
 //设置罚时
 const TP = 0.4
 //获取AK
 var AK = os.Getenv("AK")
-var sql_host = os.Getenv("sql_host")
-var sql_password = os.Getenv("sql_password")
-type Orm struct{
-	db *sql.DB   	
+var sql_host = os.Getenv("HOST")
+var sql_password = os.Getenv("PASSWORD")
+
+//设置记录历史搜索记录的结构体
+type history struct{
+	origin []string
+	destination []string
 }
-func StartupOrm(driver, source string) (e *Orm, err error) {
+//用于与数据库交互的引擎
+type Engine struct{
+	db *sql.DB
+	table string `default:""` //表
+	column []string `default:""`  //列
+	value []string `default:""` //值
+	where string `default:""`  //条件
+	where_flag int 	//是否设置了条件
+	   	
+}
+
+func StartupEngine(driver, source string) (e *Engine, err error) {
 	db, err := sql.Open(driver, source)
 	if err != nil {
 		return
@@ -29,24 +44,97 @@ func StartupOrm(driver, source string) (e *Orm, err error) {
 	if err = db.Ping(); err != nil {
 		return
 	}
-	e = &Orm{db: db}
-	return
+	e = new(Engine)
+	e.db = db
+	return e,nil
+}
+func (e *Engine) Where(_where string) *Engine{
+	e.where_flag = 1
+	e.where = _where	
+	return e
+}
+func (e *Engine) Column(_column ...string) *Engine{
+	e.column = append(e.column, _column...)
+	return e
+}
+func (e *Engine) Value(value ...string) *Engine{
+	e.value = append(e.value, value...)
+	return e
+}
+func (e *Engine) Table(_table string) *Engine{
+	e.table = _table
+	return e
+}
+
+//定义查询方法
+func (e *Engine) Select () *history {
+	//构造查询语句
+	cloumn_num := len(e.column)
+	var column string
+	var i int
+	for i = 0; i < cloumn_num-1; i++ {
+		column += e.column[i] + ","
+	}
+	column += e.column[i]
+	var query string
+	if (e.where_flag == 1){
+		query = "select " + column +" from " + e.table + " where " + e.where
+	}else{
+		query = "select " + column +" from " + e.table
+	}
+	//进行查询
+	rows,err := e.db.Query(query)
+	if err != nil {
+		fmt.Printf("查询错误：%v",err)
+	}
+	defer rows.Close()
+	var h history  //用于记录查询所得数据
+	var _origin string
+	var _destination string
+	//解析查询结果
+	for rows.Next(){
+		rows.Scan(&_origin,&_destination)
+		h.origin = append(h.origin,_origin)
+		h.destination = append(h.destination, _destination)
+	}
+	err = rows.Err()
+	if err != nil {
+		fmt.Printf("查询错误：%v",err)
+	}
+	return &h
+}
+//定义增加方法
+func (e *Engine) Insert (){
+	var columm string
+	var value string
+	cloumn_num := len(e.column)
+	var i int
+	for i = 0; i < cloumn_num - 1; i++ {
+		columm += e.column[i] + ","
+		value += "\"" + e.value[i] + "\"" + ","
+	}
+	columm += e.column[i]
+	value += "\"" + e.value[i] + "\""
+	query := "insert into " + e.table +" (" + columm +  ") " + "values " + "(" + value + ")"
+	_,err := e.db.Exec(query)
+	if err != nil{
+		fmt.Printf("插入错误:%v",err)
+	}
+}
+//定义删除方法
+func (e *Engine) Delete() {
+	var query string
+	if e.where_flag == 1 {
+		query = "delete from " + e.table + " where " + e.where
+	}else{
+		query = "delete from " + e.table
+	}
+	e.db.Exec(query)
 }
 func main()  {
-	// //设置数据库
-	// dsb := fmt.Sprintf("%s:%s/web_server",sql_host,sql_password)
-	// db,err := sql.Open("mysql",dsb)	
-	// if err != nil{
-	// 	fmt.Printf("数据库驱动加载错误: %v",err)
-	// }
-	// defer db.Close()
-	// err = db.Ping()
-	// if err != nil{
-	// 	fmt.Printf("数据库连接建立错误: %v",err)
-	// }
-	
 	http.HandleFunc("/trackmatch",trackmatch)
 	http.HandleFunc("/directionlite",directionlite)
+	http.HandleFunc("/history",search_history)
 	err := http.ListenAndServe(":8081", nil)  //监听8081端口
     if err != nil {
         fmt.Printf("服务器开启错误:  %v", err)
@@ -191,7 +279,7 @@ func trackmatch(w http.ResponseWriter, r *http.Request){
 	fmt.Fprintln(w,ResData.Status,ResData.Data.Similarity)
 }
 /*进行道路路况查询*/ 
-func road(road_name string,city string) string{
+func road(road_name string,city string) int{
 	
 	//API地址
 	API_host := "https://api.map.baidu.com"
@@ -206,7 +294,7 @@ func road(road_name string,city string) string{
 	request, err := url.Parse(API_host + API_uri + "?" + params.Encode())
     if nil != err {
         fmt.Printf("请求构造错误: %v", err)
-        return ""
+        return -1
     }
 	//发送请求
 	resp,err1 := http.Get(request.String())
@@ -237,7 +325,24 @@ func road(road_name string,city string) string{
 	
 	ResData := Road{}
 	json.Unmarshal(body,&ResData)
-	return ResData.Description
+	return ResData.Status  //返回状态码
+}
+/*用于查看历史记录*/
+func search_history(w http.ResponseWriter, r *http.Request){
+	fmt.Fprintf(w,"<h1>历史记录</h1>")
+	//开启数据库
+	dsn := fmt.Sprintf("%s:%s@tcp(127.0.0.1:3306)/web_server",sql_host,sql_password)
+	e,errE := StartupEngine("mysql",dsn)
+	if errE != nil{
+		fmt.Fprintf(w,"错误:%v<br>",errE)
+	}
+	defer e.db.Close()
+	h := new(history)
+	h = e.Table("history").Column("origin","destination").Select()
+	hlen := len(h.destination)
+	for i := 0; i < hlen; i++ {
+		fmt.Fprintf(w,"起点:%s 终点:%s<br>",h.origin[i],h.destination[i])
+	}
 }       
 func directionlite(w http.ResponseWriter,r *http.Request){
 	//设置页面用于接收用户的输入
@@ -254,6 +359,16 @@ func directionlite(w http.ResponseWriter,r *http.Request){
 	destination := r.PostFormValue("destination")
 	tactics := r.PostFormValue("tactics")
 	mode := r.PostFormValue("mode")
+	//存入历史记录
+	if origin != "" && destination != ""{
+		dsn := fmt.Sprintf("%s:%s@tcp(127.0.0.1:3306)/web_server",sql_host,sql_password)
+		e,errE := StartupEngine("mysql",dsn)
+		if errE != nil{
+			fmt.Printf("错误:%v",errE)
+		}
+		defer e.db.Close()
+		e.Table("history").Column("origin","destination").Value(origin,destination).Insert()  //插入该记录
+	}
 	//用地理编码解析地址
 	origin  = geocoding(origin)
 	destination = geocoding(destination)
